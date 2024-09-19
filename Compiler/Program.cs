@@ -4,28 +4,32 @@ class Program
 {
     static void Main(string[] args)
     {
-        Lexer lexer = new Lexer();
-        Parser parser = new Parser();
-
+        while (true)
+        {
+           
+            Lexer lexer = new Lexer();
+            Parser parser = new Parser();
+            
             Console.WriteLine("Enter an arithmetic expression:");
             string? input = Console.ReadLine();
+            if (input == "exit") return;
 
             List<(string message, Range position)> errors = new List<(string message, Range position)>();
             try
             {
-            // make a list of tokens from an expression
+                // make a list of tokens from an expression
                 var tokens = lexer.Tokenize(input, ref errors);
 
-            //display list of tokens
-            //foreach (var token in tokens)
-            //{
-            //    Console.WriteLine($"[{token.token}, {token.position}, {token.type}] ");
-            //}
+                //display list of tokens
+                //foreach (var token in tokens)
+                //{
+                //    Console.WriteLine($"[{token.token}, {token.position}, {token.type}] ");
+                //}
 
-            //parse tokens
-            errors = parser.Parse(tokens, errors);
+                //parse tokens
+                errors = parser.Parse(tokens, errors);
 
-            //display result
+                //display result
                 if (errors.Count == 0)
                     Console.WriteLine("No syntax errors found.");
                 else
@@ -61,6 +65,8 @@ class Program
             {
                 Console.WriteLine(ex.Message);
             }
+            Console.Write("\n\n\n");
+        }
     }
 }
 
