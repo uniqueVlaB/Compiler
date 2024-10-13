@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace Compiler
+﻿namespace Compiler
 {
     public class Parser
     {
@@ -36,7 +30,7 @@ namespace Compiler
                             currentState = State.OpenParenthesis;
                             openParenthesis.Add(position.Start.Value);
                         }
-                        else if (type == TokenType.Number || type == TokenType.Varialble)
+                        else if (type == TokenType.Number || type == TokenType.Variable)
                         {
                             currentState = State.NumberOrVariable;
                         }
@@ -70,7 +64,7 @@ namespace Compiler
                         }
                         break;
                     case State.Operator:
-                        if (type == TokenType.Number || type == TokenType.Varialble)
+                        if (type == TokenType.Number || type == TokenType.Variable)
                         {
                             currentState = State.NumberOrVariable;
                         }
@@ -96,7 +90,7 @@ namespace Compiler
                         break;
 
                     case State.OpenParenthesis:
-                        if (type == TokenType.Number || type == TokenType.Varialble)
+                        if (type == TokenType.Number || type == TokenType.Variable)
                             currentState = State.NumberOrVariable;
                         else if (type == TokenType.OpenParenthesis)
                         {
