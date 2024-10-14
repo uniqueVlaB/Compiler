@@ -44,12 +44,11 @@ namespace Compiler
                     }
                     #endregion
                     #region remove-0*x
-                    
-                    if (tokens[i].token == "0" && i >= 3 && tokens[i - 1].token == "*")
+                    else if (tokens[i].token == "0" && i > 1 && tokens[i - 1].token == "*")
                     {
-                        if (tokens[i - 2].type == TokenType.Variable || tokens[i + 2].type == TokenType.Number)
+                        if (tokens[i - 2].type == TokenType.Variable || tokens[i - 2].type == TokenType.Number)
                         {
-                            tokens.RemoveRange(i - 3, 2);
+                            tokens.RemoveRange(i - 2, 2);
                             optimized = true;
                             optimizationsLog.Add("Simplifyed multiplication by 0");
                         }
@@ -117,7 +116,10 @@ namespace Compiler
                     }
                     #endregion
                     #region const*const
-                    if (i + 2 < tokens.Count && tokens[i].type == TokenType.Number && tokens[i + 1].type == TokenType.Operator && tokens[i + 2].type == TokenType.Number)
+                    else if (i + 2 < tokens.Count
+                        && tokens[i].type == TokenType.Number
+                        && tokens[i + 1].type == TokenType.Operator
+                        && tokens[i + 2].type == TokenType.Number)
                     {
                         double result;
                         double left = double.Parse(tokens[i].token, CultureInfo.InvariantCulture);
@@ -147,7 +149,7 @@ namespace Compiler
                     }
                     #endregion
                     #region remove-1*x
-                    if (i + 2 < tokens.Count && tokens[i].token == "1" && tokens[i + 1].token == "*")
+                    else if (i + 2 < tokens.Count && tokens[i].token == "1" && tokens[i + 1].token == "*")
                     {
                         if (tokens[i + 2].type == TokenType.Variable || tokens[i + 2].type == TokenType.Number || tokens[i + 2].type == TokenType.OpenParenthesis)
                         {
@@ -156,18 +158,18 @@ namespace Compiler
                             optimizationsLog.Add("Removed unnecsessary multiplication by 1");
                         }
                     }
-                    else if (tokens[i].token == "1" && i >= 2 && tokens[i - 1].token == "*")
+                    else if (tokens[i].token == "1" && i >= 3 && tokens[i - 1].token == "*")
                     {
-                        if (tokens[i - 2].type == TokenType.Variable || tokens[i - 2].type == TokenType.Number || tokens[i - 2].type == TokenType.CloseParenthesis)
+                        if (i - 2 >= 0 && (tokens[i - 2].type == TokenType.Variable || tokens[i - 2].type == TokenType.Number || tokens[i - 2].type == TokenType.CloseParenthesis))
                         {
                             tokens.RemoveRange(i - 1, 2);
                             optimized = true;
-                            optimizationsLog.Add("Removed unnecsessary multiplication by 1");
+                            optimizationsLog.Add("Removed unnecessary multiplication by 1");
                         }
                     }
                     #endregion
                     #region remove-1/x
-                    if (tokens[i].token == "1" && i >= 2 && tokens[i - 1].token == "/")
+                    else if (tokens[i].token == "1" && i >= 2 && tokens[i - 1].token == "/")
                     {
                         if (tokens[i - 2].type == TokenType.Variable || tokens[i - 2].type == TokenType.Number || tokens[i - 2].type == TokenType.CloseParenthesis)
                         {
@@ -179,7 +181,7 @@ namespace Compiler
                     }
                     #endregion
                     #region remove-0/x
-                    if (tokens[i].token == "0" && i + 2 < tokens.Count && tokens[i + 1].token == "/")
+                    else if (i + 2 < tokens.Count && tokens[i].token == "0" && tokens[i + 1].token == "/")
                     {
                         if (tokens[i + 2].type == TokenType.Variable || tokens[i + 2].type == TokenType.Number)
                         {
@@ -216,7 +218,17 @@ namespace Compiler
                     }
                     #endregion
                     #region throw-x/0
-                    if (tokens[i].token == "/" && tokens[i + 1].token == "0") throw new DivideByZeroException();
+                    else if (tokens[i].token == "/" && tokens[i + 1].token == "0") throw new DivideByZeroException();
+                    #endregion
+                    #region remove-(x)
+                    else if (i > 0 && i < tokens.Count && (tokens[i].type == TokenType.Number || tokens[i].type == TokenType.Variable) 
+                        && tokens[i-1].type == TokenType.OpenParenthesis && tokens[i+1].type == TokenType.CloseParenthesis)
+                    {
+                        tokens.RemoveAt(i+1);
+                        tokens.RemoveAt(i-1);
+                        optimized = true;
+                        optimizationsLog.Add("(x) simplified to x");
+                    }
                     #endregion
                 }
             } while (optimized);
