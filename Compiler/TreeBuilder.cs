@@ -3,13 +3,13 @@ using QuickGraph.Graphviz;
 using QuickGraph.Graphviz.Dot;
 using System.Diagnostics;
 using System.Globalization;
+using System.Text.RegularExpressions;
 
 namespace Compiler
 {
     public class TreeBuilder
     {
         public List<string> optimizationsLog = new List<string>();
-
         public TreeNode BuildTree(List<(string token, Range position, TokenType type)> tokens)
         {
             optimizationsLog.Clear();
@@ -221,26 +221,78 @@ namespace Compiler
                     else if (tokens[i].token == "/" && tokens[i + 1].token == "0") throw new DivideByZeroException();
                     #endregion
                     #region remove-(x)
-                    else if (i > 0 && i < tokens.Count && (tokens[i].type == TokenType.Number || tokens[i].type == TokenType.Variable) 
-                        && tokens[i-1].type == TokenType.OpenParenthesis && tokens[i+1].type == TokenType.CloseParenthesis)
+                    else if (i > 0 && i < tokens.Count && (tokens[i].type == TokenType.Number || tokens[i].type == TokenType.Variable)
+                        && tokens[i - 1].type == TokenType.OpenParenthesis && tokens[i + 1].type == TokenType.CloseParenthesis)
                     {
-                        tokens.RemoveAt(i+1);
-                        tokens.RemoveAt(i-1);
+                        tokens.RemoveAt(i + 1);
+                        tokens.RemoveAt(i - 1);
                         optimized = true;
                         optimizationsLog.Add("(x) simplified to x");
                     }
                     #endregion
                 }
             } while (optimized);
-
-            foreach (var token in tokens)
-            {
-                Console.Write(token.token);
-            }
-            Console.WriteLine();
-            return tokens;
+            return GroupSequences(tokens);
         }
 
+        private List<(string token, Range position, TokenType type)> GroupSequences(List<(string token, Range position, TokenType type)> tokens)
+        {
+            var expression = string.Join("", tokens.Select(x => x.token)); 
+            // Замінюємо всі послідовності додавань на згруповані
+            expression = Regex.Replace(expression, @"([a-zA-Z0-9.]+(\+[a-zA-Z0-9.]+)+)", match =>
+            {
+                return DivideMultipleOperations(match.Value);
+            });
+
+            // Замінюємо всі послідовності множень на згруповані
+            expression = Regex.Replace(expression, @"([a-zA-Z0-9.]+(\*[a-zA-Z0-9.]+)+)", match =>
+            {
+                return DivideMultipleOperations(match.Value);
+            });
+            var lexer = new Lexer();
+            var nool = new List<(string, Range)>();
+            Console.WriteLine(expression);
+            return lexer.Tokenize(expression, ref nool); ;
+        }
+
+        private string DivideMultipleOperations(string expression)
+        {
+            // Визначаємо оператор ("+" чи "*") у виразі
+            char operation = expression.Contains('+') ? '+' : '*';
+
+            // Розбиваємо вираз на операнди
+            var operands = Regex.Split(expression, @"\+|\*").Where(x => !string.IsNullOrEmpty(x)).ToList();
+
+            return GroupOperands(operands, operation);
+        }
+
+        private string GroupOperands(List<string> operands, char operation)
+        {
+            int count = operands.Count;
+
+            if (count <= 2)
+            {
+                // Якщо операндів два чи менше, повертаємо вираз як (a operation b)
+                return $"({string.Join(operation.ToString(), operands)})";
+            }
+
+            if (count == 3)
+            {
+                // Якщо три операнди, повертаємо (a operation b) operation c
+                return $"({operands[0]}{operation}{operands[1]}){operation}{operands[2]}";
+            }
+
+            // Рекурсивно ділимо список на дві частини
+            int half = count / 2;
+
+            // Ліва частина
+            var leftGroup = GroupOperands(operands.GetRange(0, half), operation);
+
+            // Права частина
+            var rightGroup = GroupOperands(operands.GetRange(half, count - half), operation);
+
+            return $"({leftGroup}{operation}{rightGroup})";
+        }
         private bool IsOperand(string token)
         {
             return double.TryParse(token, out _) || !IsOperator(token);
