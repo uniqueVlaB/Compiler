@@ -31,8 +31,12 @@ class Program
                     foreach (var message in treeBuilder.optimizationsLog)
                     {
                         Console.WriteLine(message);
-                    }
+                    } 
+                    var pks = new GridPKS(3);
+                    var tr = pks.ConvertToOperationTree(root);
                     treeBuilder.DrawTree(root);
+                    pks.DrawTree(tr);
+                    pks.Execute(tr);
                 }
                 else
                 {
