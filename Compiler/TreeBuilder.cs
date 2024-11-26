@@ -9,298 +9,19 @@ namespace Compiler
 {
     public class TreeBuilder
     {
-        public List<string> optimizationsLog = new List<string>();
         public TreeNode BuildTree(List<(string token, Range position, TokenType type)> tokens)
         {
-            optimizationsLog.Clear();
-            tokens = OptimizeExpression(tokens);
+            for (int i = 0; i < tokens.Count; i++) {
+                if (i + 1 < tokens.Count && 
+                    (tokens[i].type == TokenType.Number || tokens[i].type == TokenType.Variable) &&
+                    tokens[i+1].type == TokenType.OpenParenthesis) 
+                {
+                    tokens.Insert(i+1, new ("*", new Range(), TokenType.Operator));
+                }
+            }
             var postfix = ConvertToPostfix(tokens);
             var tree = CreateTreeFromPostfix(postfix);
             return tree;
-        }
-
-        public List<(string token, Range position, TokenType type)> OptimizeExpression(List<(string token, Range position, TokenType type)> tokens)
-        {
-
-            if (tokens[0].token == "-")
-            {
-                tokens.Insert(0, ("0", new Range(), TokenType.Number));
-                optimizationsLog.Add("Added 0 before unary minus at the beginning");
-            }
-
-            bool optimized;
-            do
-            {
-                optimized = false;
-
-                for (int i = 0; i < tokens.Count; i++)
-                {
-                    #region addZeroBeforeMinus(-A)
-                    if (tokens[i].type == TokenType.OpenParenthesis && tokens[i + 1].token == "-")
-                    {
-                        tokens.Insert(i + 1, ("0", new Range(), TokenType.Number));
-                        optimized = true;
-                        optimizationsLog.Add("Added 0 between '(' and '-' to avoid error");
-                    }
-                    #endregion
-                    #region remove-0*x
-                    else if (tokens[i].token == "0" && i > 1 && tokens[i - 1].token == "*")
-                    {
-                        if (tokens[i - 2].type == TokenType.Variable || tokens[i - 2].type == TokenType.Number)
-                        {
-                            tokens.RemoveRange(i - 2, 2);
-                            optimized = true;
-                            optimizationsLog.Add("Simplifyed multiplication by 0");
-                        }
-                        else if (tokens[i - 2].type == TokenType.CloseParenthesis)
-                        {
-                            var closes = 1;
-                            var end = i - 1;
-                            var start = 0;
-                            for (int j = i - 3; j >= 0; j--)
-                            {
-                                if (tokens[j].type == TokenType.CloseParenthesis)
-                                {
-                                    closes++;
-                                }
-                                else if (tokens[j].type == TokenType.OpenParenthesis)
-                                {
-                                    closes--;
-                                }
-
-                                if (closes == 0)
-                                {
-                                    start = j;
-                                    optimized = true;
-                                    break;
-                                }
-                            }
-                            tokens.RemoveRange(start, end - start + 1);
-                            optimizationsLog.Add("Simplifyed multiplication by 0");
-                        }
-                    }
-                    else if (tokens[i].token == "0" && i + 2 < tokens.Count && tokens[i + 1].token == "*")
-                    {
-                        if (tokens[i + 2].type == TokenType.Variable || tokens[i + 2].type == TokenType.Number)
-                        {
-                            tokens.RemoveRange(i + 1, 2);
-                            optimizationsLog.Add("Simplifyed multiplication by 0");
-                            optimized = true;
-                        }
-                        else if (tokens[i + 2].type == TokenType.OpenParenthesis)
-                        {
-                            var opens = 1;
-                            var start = i + 1;
-                            var end = 0;
-                            for (int j = i + 3; j < tokens.Count; j++)
-                            {
-                                if (tokens[j].type == TokenType.OpenParenthesis)
-                                {
-                                    opens++;
-                                }
-                                else if (tokens[j].type == TokenType.CloseParenthesis)
-                                {
-                                    opens--;
-                                }
-
-                                if (opens == 0)
-                                {
-                                    end = j;
-                                    optimized = true;
-                                    break;
-                                }
-                            }
-                            tokens.RemoveRange(start, end - start + 1);
-                            optimizationsLog.Add("Simplifyed multiplication by 0");
-                        }
-                    }
-                    #endregion
-                    #region const*const
-                    else if (i + 2 < tokens.Count
-                        && tokens[i].type == TokenType.Number
-                        && tokens[i + 1].type == TokenType.Operator
-                        && tokens[i + 2].type == TokenType.Number)
-                    {
-                        double result;
-                        double left = double.Parse(tokens[i].token, CultureInfo.InvariantCulture);
-                        double right = double.Parse(tokens[i + 2].token, CultureInfo.InvariantCulture);
-
-                        switch (tokens[i + 1].token)
-                        {
-                            case "+":
-                                result = left + right;
-                                break;
-                            case "-":
-                                result = left - right;
-                                break;
-                            case "*":
-                                result = left * right;
-                                break;
-                            case "/":
-                                result = left / right;
-                                break;
-                            default: throw new Exception("unknown operator");
-                        }
-                        optimizationsLog.Add($"Performed: {left} {tokens[i + 1].token} {right} = {result}");
-                        tokens[i] = (result.ToString(), new Range(), TokenType.Number);
-                        tokens.RemoveRange(i + 1, 2);
-                        optimized = true;
-
-                    }
-                    #endregion
-                    #region remove-1*x
-                    else if (i + 2 < tokens.Count && tokens[i].token == "1" && tokens[i + 1].token == "*")
-                    {
-                        if (tokens[i + 2].type == TokenType.Variable || tokens[i + 2].type == TokenType.Number || tokens[i + 2].type == TokenType.OpenParenthesis)
-                        {
-                            tokens.RemoveRange(i, 2);
-                            optimized = true;
-                            optimizationsLog.Add("Removed unnecsessary multiplication by 1");
-                        }
-                    }
-                    else if (tokens[i].token == "1" && i >= 3 && tokens[i - 1].token == "*")
-                    {
-                        if (i - 2 >= 0 && (tokens[i - 2].type == TokenType.Variable || tokens[i - 2].type == TokenType.Number || tokens[i - 2].type == TokenType.CloseParenthesis))
-                        {
-                            tokens.RemoveRange(i - 1, 2);
-                            optimized = true;
-                            optimizationsLog.Add("Removed unnecessary multiplication by 1");
-                        }
-                    }
-                    #endregion
-                    #region remove-1/x
-                    else if (tokens[i].token == "1" && i >= 2 && tokens[i - 1].token == "/")
-                    {
-                        if (tokens[i - 2].type == TokenType.Variable || tokens[i - 2].type == TokenType.Number || tokens[i - 2].type == TokenType.CloseParenthesis)
-                        {
-                            tokens.RemoveRange(i - 1, 2);
-                            optimized = true;
-                            optimizationsLog.Add("Removed unnecsessary division by 1");
-                            break;
-                        }
-                    }
-                    #endregion
-                    #region remove-0/x
-                    else if (i + 2 < tokens.Count && tokens[i].token == "0" && tokens[i + 1].token == "/")
-                    {
-                        if (tokens[i + 2].type == TokenType.Variable || tokens[i + 2].type == TokenType.Number)
-                        {
-                            tokens.RemoveRange(i + 1, 2);
-                            optimized = true;
-                            optimizationsLog.Add("Removed 0/x case");
-                        }
-                        else if (tokens[i + 2].type == TokenType.OpenParenthesis)
-                        {
-                            var opens = 1;
-                            var start = i + 1;
-                            var end = 0;
-                            for (int j = i + 3; j < tokens.Count; j++)
-                            {
-                                if (tokens[j].type == TokenType.OpenParenthesis)
-                                {
-                                    opens++;
-                                }
-                                else if (tokens[j].type == TokenType.CloseParenthesis)
-                                {
-                                    opens--;
-                                }
-
-                                if (opens == 0)
-                                {
-                                    end = j;
-                                    optimized = true;
-                                    break;
-                                }
-                            }
-                            tokens.RemoveRange(start, end - start + 1);
-                            optimizationsLog.Add("Removed 0/x case");
-                        }
-                    }
-                    #endregion
-                    #region throw-x/0
-                    else if (tokens[i].token == "/" && tokens[i + 1].token == "0") throw new DivideByZeroException();
-                    #endregion
-                    #region remove-(x)
-                    else if (i > 0 && i < tokens.Count && (tokens[i].type == TokenType.Number || tokens[i].type == TokenType.Variable)
-                        && tokens[i - 1].type == TokenType.OpenParenthesis && tokens[i + 1].type == TokenType.CloseParenthesis)
-                    {
-                        tokens.RemoveAt(i + 1);
-                        tokens.RemoveAt(i - 1);
-                        optimized = true;
-                        optimizationsLog.Add("(x) simplified to x");
-                    }
-                    #endregion
-                }
-            } while (optimized);
-            return GroupSequences(tokens);
-        }
-
-        private List<(string token, Range position, TokenType type)> GroupSequences(List<(string token, Range position, TokenType type)> tokens)
-        {
-            var expression = string.Join("", tokens.Select(x => x.token)); 
-            // Замінюємо всі послідовності додавань на згруповані
-            expression = Regex.Replace(expression, @"([a-zA-Z0-9.]+(\+[a-zA-Z0-9.]+)+)", match =>
-            {
-                return DivideMultipleOperations(match.Value);
-            });
-
-            // Замінюємо всі послідовності множень на згруповані
-            expression = Regex.Replace(expression, @"([a-zA-Z0-9.]+(\*[a-zA-Z0-9.]+)+)", match =>
-            {
-                return DivideMultipleOperations(match.Value);
-            });
-            var lexer = new Lexer();
-            var nool = new List<(string, Range)>();
-            Console.WriteLine(expression);
-            return lexer.Tokenize(expression, ref nool); ;
-        }
-
-        private string DivideMultipleOperations(string expression)
-        {
-            // Визначаємо оператор ("+" чи "*") у виразі
-            char operation = expression.Contains('+') ? '+' : '*';
-
-            // Розбиваємо вираз на операнди
-            var operands = Regex.Split(expression, @"\+|\*").Where(x => !string.IsNullOrEmpty(x)).ToList();
-
-            return GroupOperands(operands, operation);
-        }
-
-        private string GroupOperands(List<string> operands, char operation)
-        {
-            int count = operands.Count;
-
-            if (count <= 2)
-            {
-                // Якщо операндів два чи менше, повертаємо вираз як (a operation b)
-                return $"({string.Join(operation.ToString(), operands)})";
-            }
-
-            if (count == 3)
-            {
-                // Якщо три операнди, повертаємо (a operation b) operation c
-                return $"({operands[0]}{operation}{operands[1]}){operation}{operands[2]}";
-            }
-
-            // Рекурсивно ділимо список на дві частини
-            int half = count / 2;
-
-            // Ліва частина
-            var leftGroup = GroupOperands(operands.GetRange(0, half), operation);
-
-            // Права частина
-            var rightGroup = GroupOperands(operands.GetRange(half, count - half), operation);
-
-            return $"({leftGroup}{operation}{rightGroup})";
-        }
-        private bool IsOperand(string token)
-        {
-            return double.TryParse(token, out _) || !IsOperator(token);
-        }
-
-        private bool IsOperator(string token)
-        {
-            return token == "+" || token == "-" || token == "*" || token == "/";
         }
 
         private List<string> ConvertToPostfix(List<(string token, Range position, TokenType type)> tokens)
@@ -346,6 +67,15 @@ namespace Compiler
             }
 
             return postfix;
+        }
+        private bool IsOperand(string token)
+        {
+            return double.TryParse(token, out _) || !IsOperator(token);
+        }
+
+        private bool IsOperator(string token)
+        {
+            return token == "+" || token == "-" || token == "*" || token == "/";
         }
 
         private TreeNode CreateTreeFromPostfix(List<string> postfix)

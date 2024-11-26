@@ -17,7 +17,7 @@ namespace Compiler
             ["/"] = 8,
         };
         private int _idCounter = 0;
-        private string[,] ExecuteMatrix = new string[200, 9];
+        private string[,] ExecuteMatrix = new string[100, 9];
         private int sequentialCycles = 0;
 
 
@@ -113,6 +113,11 @@ namespace Compiler
         }
         public OperationNode? ConvertToOperationTree(TreeNode expressionTree)
         {
+            return ConvertNode(expressionTree, null, 0);
+        }
+        public OperationNode? ConvertToOperationTree(TreeNode expressionTree, List<(string token, Range position, TokenType type)> tokens)
+        {
+            Console.WriteLine(string.Join("", tokens.Select(x => x.token)));
             return ConvertNode(expressionTree, null, 0);
         }
         private OperationNode? ConvertNode(TreeNode? currentNode, OperationNode? parent, int depth)
@@ -435,6 +440,94 @@ namespace Compiler
             }
             ShowExecutionMatrix();
             CalculateEfficiency(sequentialCycles);
+        }
+
+        public void Compare(OperationNode[] trees)
+        {
+            var results = new List<(int TreeId, int SequentialCycles, int ParallelCycles, double Speedup, double Efficiency)>();
+
+            // Виконуємо обчислення для кожного дерева
+            for (int i = 0; i < trees.Length; i++)
+            {
+                Console.WriteLine($"\n===\n===\n===\nTree {i}\n===\n===\n===");
+                sequentialCycles = 0;
+                ExecuteMatrix = new string[100, 9];
+                var root = trees[i];
+                if (root == null)
+                {
+                    Console.WriteLine($"Tree {i + 1} is empty. Skipping...");
+                    continue;
+                }
+
+                // Отримуємо рівні вузлів
+                var levels = GetNodesByLevel(root);
+                queueOperations(levels);
+
+                foreach (var level in levels)
+                {
+                    Console.WriteLine($"\nLevel {level.Key}: {string.Join(", ", level.Value.Select(node => node.Value + $" (nodeID:{node.Id}, cpuID:{node.queuedCPUid})"))}");
+                }
+
+                var maxLevel = levels.Keys.Max();
+                int currentCycle = 1;
+                for (int j = maxLevel; j >= 0; j--)
+                {
+                    if (currentCycle != 1) currentCycle = PerformTransfersWithSync(levels[j], currentCycle);
+                    //if (currentCycle != 1) currentCycle = PerformTransfers(levels[i], currentCycle);
+
+                    currentCycle = ExecuteLevel(levels[j], currentCycle);
+
+                }
+                ShowExecutionMatrix();
+                CalculateEfficiency(sequentialCycles);
+
+                results.Add(GetEfficiency(i));
+            } 
+                PrintResults(results);
+        }
+
+        // Метод для виведення результатів
+        private void PrintResults(List<(int TreeId, int SequentialCycles, int ParallelCycles, double Speedup, double Efficiency)> results)
+        {
+            Console.WriteLine("\n=== Comparison Results ===");
+            Console.WriteLine($"{"Tree ID",-10} {"Sequential",-12} {"Parallel",-10} {"Speedup",-10} {"Efficiency",-10}");
+            Console.WriteLine(new string('-', 50));
+
+            foreach (var result in results)
+            {
+                Console.WriteLine($"{result.TreeId,-10} {result.SequentialCycles,-12} {result.ParallelCycles,-10} {result.Speedup,-10:F3} {result.Efficiency,-10:F3}");
+
+            }
+        }
+
+        private (int TreeId, int SequentialCycles, int ParallelCycles, double Speedup, double Efficiency) GetEfficiency(int treeID) 
+        {
+            // Підрахунок загальної кількості тактів виконання
+            int parallelCycles = 0;
+            for (int i = 0; i < ExecuteMatrix.GetLength(0); i++)
+            {
+                bool hasExecution = false;
+                for (int j = 0; j < ExecuteMatrix.GetLength(1); j++)
+                {
+                    if (!string.IsNullOrEmpty(ExecuteMatrix[i, j]))
+                    {
+                        hasExecution = true;
+                        break;
+                    }
+                }
+                if (hasExecution)
+                {
+                    parallelCycles++;
+                }
+            }
+
+            // Коефіцієнт прискорення (speedup)
+            double speedup = (double)sequentialCycles / parallelCycles;
+
+            // Коефіцієнт ефективності (efficiency)
+            int processorCount = CPUs.Length;
+            double efficiency = speedup / processorCount;
+            return new (treeID, sequentialCycles, parallelCycles, speedup, efficiency);
         }
 
         private void CalculateEfficiency(int sequentialCycles)
